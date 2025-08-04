@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TXT Dosyasından Link Ayıklayıcı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg p-6 sm:p-8">
+        <!-- Başlık Bölümü -->
+        <div class="text-center mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">HTML İçerikli Metin Dosyasından Link Ayıklama</h1>
+            <p class="text-gray-500 mt-2">İçerisinde HTML kodu bulunan bir <code>.txt</code> dosyası yükleyerek tüm linkleri listeleyin.</p>
+        </div>
+
+        <!-- Dosya Yükleme Alanı -->
+        <div>
+            <label for="fileInput" class="w-full flex items-center justify-center px-4 py-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span class="mt-2 block text-sm font-medium text-gray-700">Bir dosya seçin veya sürükleyip bırakın</span>
+                    <span id="fileName" class="mt-1 block text-xs text-gray-500">Henüz dosya seçilmedi</span>
+                </div>
+            </label>
+            <input type="file" id="fileInput" class="hidden" accept=".txt">
+        </div>
+
+        <!-- Sonuçların Gösterileceği Alan -->
+        <div id="resultsContainer" class="mt-8 hidden">
+            <div class="flex justify-between items-center mb-3">
+                 <h2 class="text-lg font-semibold text-gray-700">Bulunan Linkler (<span id="linkCount">0</span>)</h2>
+                 <button id="copyAllButton" class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
+            </div>
+           
+            <div class="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+                <ul id="linkList" class="divide-y divide-gray-200">
+                    <!-- Linkler buraya eklenecek -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileName');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const linkList = document.getElementById('linkList');
+        const linkCount = document.getElementById('linkCount');
+        const copyAllButton = document.getElementById('copyAllButton');
+
+        // Dosya seçildiğinde çalışacak fonksiyon
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+        
+        // Sürükle-bırak işlevselliği
+        const dropZone = document.querySelector('label[for="fileInput"]');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-blue-50', 'border-blue-400');
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === "text/plain") {
+                 handleFile(file);
+            }
+        });
+
+
+        // Dosyayı işleyen ana fonksiyon
+        function handleFile(file) {
+            fileNameDisplay.textContent = `Seçilen dosya: ${file.name}`;
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const content = e.target.result;
+                extractLinks(content);
+            };
+
+            reader.onerror = () => {
+                alert('Dosya okunurken bir hata oluştu.');
+                resetUI();
+            };
+
+            reader.readAsText(file);
+        }
+
+        // Linkleri çıkaran ve listeleyen fonksiyon
+        function extractLinks(htmlContent) {
+            linkList.innerHTML = ''; // Önceki listeyi temizle
+            
+            // HTML içeriğini geçici bir elemente yükleyerek linkleri bulma
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+
+            const links = tempDiv.querySelectorAll('a[href]');
+            linkCount.textContent = links.length;
+
+            if (links.length > 0) {
+                resultsContainer.classList.remove('hidden');
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if(href && href.trim() !== '#' && !href.trim().toLowerCase().startsWith('javascript:')) {
+                        const li = document.createElement('li');
+                        li.className = 'p-3 flex items-center justify-between hover:bg-gray-50';
+                        
+                        const text = link.textContent.trim() || href;
+                        
+                        li.innerHTML = `
+                            <a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate" title="${href}">
+                                ${text}
+                            </a>
+                            <button class="copy-btn ml-4 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded hover:bg-gray-300" data-link="${href}">Kopyala</button>
+                        `;
+                        linkList.appendChild(li);
+                    }
+                });
+            } else {
+                linkList.innerHTML = `<li class="p-4 text-center text-gray-500">Bu dosyada geçerli bir link bulunamadı.</li>`;
+                resultsContainer.classList.remove('hidden');
+            }
+            
+            // Tekil kopyalama butonlarına olay dinleyicisi ekle
+            document.querySelectorAll('.copy-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    copyToClipboard(e.target.dataset.link, e.target);
+                });
+            });
+        }
+        
+        // Tüm linkleri kopyalama butonu
+        copyAllButton.addEventListener('click', () => {
+            const allLinks = Array.from(linkList.querySelectorAll('a'))
+                                  .map(a => a.href)
+                                  .join('\n');
+            if(allLinks) {
+                copyToClipboard(allLinks, copyAllButton, true);
+            }
+        });
+
+        // Panoya kopyalama fonksiyonu
+        function copyToClipboard(text, buttonElement, isAll = false) {
+            const originalText = buttonElement.textContent;
+            
+            // execCommand, iframe kısıtlamaları nedeniyle daha güvenilir çalışır
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; // Görünümden kaldır
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                buttonElement.textContent = 'Kopyalandı!';
+                buttonElement.classList.add('bg-green-500', 'text-white');
+            } catch (err) {
+                buttonElement.textContent = 'Hata!';
+                console.error('Kopyalama hatası:', err);
+            }
+            document.body.removeChild(textArea);
+
+            // Buton metnini eski haline getir
+            setTimeout(() => {
+                buttonElement.textContent = originalText;
+                buttonElement.classList.remove('bg-green-500', 'text-white');
+            }, 2000);
+        }
+
+        // Arayüzü sıfırlama fonksiyonu
+        function resetUI() {
+            fileNameDisplay.textContent = 'Henüz dosya seçilmedi.';
+            resultsContainer.classList.add('hidden');
+            linkList.innerHTML = '';
+            linkCount.textContent = '0';
+        }
+    </script>
+</body>
+</html>
