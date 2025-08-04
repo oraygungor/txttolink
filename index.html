@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TXT Dosyasından Link Ayıklayıcı</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- XLSX dosyası oluşturmak için SheetJS kütüphanesi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -28,7 +30,7 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white w-full max-w-3xl rounded-xl shadow-lg p-6 sm:p-8">
+    <div class="bg-white w-full max-w-4xl rounded-xl shadow-lg p-6 sm:p-8">
         <!-- Başlık Bölümü -->
         <div class="text-center mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">HTML İçerikli Metin Dosyasından Link Ayıklama</h1>
@@ -63,7 +65,10 @@
                             <input type="date" id="endDate" class="px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
                         </div>
                     </div>
-                    <button id="copyAllButton" class="order-1 sm:order-3 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
+                    <div class="order-1 sm:order-3 flex gap-2">
+                        <button id="exportCsvButton" class="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-all">CSV Aktar</button>
+                        <button id="exportXlsxButton" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-all">XLSX Aktar</button>
+                    </div>
                  </div>
             </div>
            
@@ -81,13 +86,14 @@
         const resultsContainer = document.getElementById('resultsContainer');
         const linkList = document.getElementById('linkList');
         const linkCount = document.getElementById('linkCount');
-        const copyAllButton = document.getElementById('copyAllButton');
         const searchInput = document.getElementById('searchInput');
         const startDateInput = document.getElementById('startDate');
         const endDateInput = document.getElementById('endDate');
         const dateFiltersDiv = document.getElementById('dateFilters');
+        const exportCsvButton = document.getElementById('exportCsvButton');
+        const exportXlsxButton = document.getElementById('exportXlsxButton');
 
-        let allExtractedLinks = []; // Ayıklanan tüm linkleri saklamak için: {href, date, displayDate}
+        let allExtractedLinks = [];
 
         // --- OLAY DİNLEYİCİLER ---
         fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
@@ -104,6 +110,8 @@
         searchInput.addEventListener('input', applyFilters);
         startDateInput.addEventListener('change', applyFilters);
         endDateInput.addEventListener('change', applyFilters);
+        exportCsvButton.addEventListener('click', () => exportVisibleData('csv'));
+        exportXlsxButton.addEventListener('click', () => exportVisibleData('xlsx'));
 
         // --- ANA FONKSİYONLAR ---
         function handleFile(file) {
@@ -123,27 +131,24 @@
             for (const line of lines) {
                 const match = line.match(dateAndLinkRegex);
                 if (match) {
-                    const displayDate = match[1]; // GG/AA/YYYY
+                    const displayDate = match[1];
                     const href = match[2];
                     const [day, month, year] = displayDate.split('/');
-                    const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`; // YYYY-MM-DD formatı
+                    const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
                     linksFound.push({ href, date: isoDate, displayDate });
                 }
             }
             
-            // Tarihsiz linkleri de bulmak için ek regex (fallback)
             const urlRegex = /((?:https?|ftp):\/\/[^\s"'<>]+|www\.[^\s"'<>]+)/gi;
             const plainURLs = [...textContent.matchAll(urlRegex)].map(m => m[0]);
             
             plainURLs.forEach(href => {
-                // Eğer bu link tarihli olarak zaten bulunmadıysa ekle
                 if (!linksFound.some(l => l.href === href)) {
                     linksFound.push({ href, date: null, displayDate: null });
                 }
             });
 
-            allExtractedLinks = [...new Map(linksFound.map(item => [item.href, item])).values()]; // Linke göre tekilleştir
-
+            allExtractedLinks = [...new Map(linksFound.map(item => [item.href, item])).values()];
             resultsContainer.classList.remove('hidden');
             const hasDates = allExtractedLinks.some(link => link.date);
             dateFiltersDiv.classList.toggle('hidden', !hasDates);
@@ -152,23 +157,14 @@
         }
 
         function applyFilters() {
+            let filteredLinks = allExtractedLinks;
             const searchTerm = searchInput.value.toLowerCase();
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
 
-            let filteredLinks = allExtractedLinks;
-
-            if (searchTerm) {
-                filteredLinks = filteredLinks.filter(link => link.href.toLowerCase().includes(searchTerm));
-            }
-            
-            if (startDate) {
-                filteredLinks = filteredLinks.filter(link => link.date && link.date >= startDate);
-            }
-
-            if (endDate) {
-                filteredLinks = filteredLinks.filter(link => link.date && link.date <= endDate);
-            }
+            if (searchTerm) filteredLinks = filteredLinks.filter(link => link.href.toLowerCase().includes(searchTerm));
+            if (startDate) filteredLinks = filteredLinks.filter(link => link.date && link.date >= startDate);
+            if (endDate) filteredLinks = filteredLinks.filter(link => link.date && link.date <= endDate);
             
             renderLinks(filteredLinks);
         }
@@ -186,11 +182,11 @@
                 const url = (href.startsWith('http') || href.startsWith('ftp')) ? href : `http://${href}`;
                 const li = document.createElement('li');
                 li.className = 'p-3 flex items-center justify-between hover:bg-gray-50 gap-4';
+                li.setAttribute('data-href', href);
+                li.setAttribute('data-date', displayDate || '');
                 li.innerHTML = `
                     <div class="flex-1 min-w-0">
-                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate block" title="${href}">
-                            ${href}
-                        </a>
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate block" title="${href}">${href}</a>
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0">
                         ${displayDate ? `<span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${displayDate}</span>` : ''}
@@ -204,33 +200,55 @@
             );
         }
 
-        // --- YARDIMCI FONKSİYONLAR ---
-        copyAllButton.addEventListener('click', () => {
-            const visibleLinks = [...linkList.querySelectorAll('a')].map(a => a.title).join('\n');
-            if (visibleLinks) copyToClipboard(visibleLinks, copyAllButton, true);
-        });
+        // --- DIŞA AKTARMA VE YARDIMCI FONKSİYONLAR ---
+        function exportVisibleData(format) {
+            const visibleItems = [...linkList.querySelectorAll('li')];
+            if (visibleItems.length === 0) {
+                alert("Dışa aktarılacak link bulunmuyor.");
+                return;
+            }
 
-        function copyToClipboard(text, btn, isAll = false) {
+            const data = visibleItems.map(item => ({
+                Tarih: item.dataset.date || 'N/A',
+                Link: item.dataset.href
+            }));
+
+            const today = new Date().toISOString().slice(0, 10);
+            const filename = `linkler_${today}`;
+
+            if (format === 'xlsx') {
+                const worksheet = XLSX.utils.json_to_sheet(data);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Linkler");
+                XLSX.writeFile(workbook, `${filename}.xlsx`);
+            } else if (format === 'csv') {
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Tarih,Link\n";
+                data.forEach(row => {
+                    csvContent += `"${row.Tarih}","${row.Link}"\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `${filename}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        function copyToClipboard(text, btn) {
             const originalText = btn.textContent;
-            const tmp = document.createElement('textarea');
-            tmp.value = text;
-            tmp.style.position = 'fixed';
-            document.body.appendChild(tmp);
-            tmp.focus();
-            tmp.select();
-            try {
-                document.execCommand('copy');
+            navigator.clipboard.writeText(text).then(() => {
                 btn.textContent = 'Kopyalandı!';
                 btn.classList.add('bg-green-500', 'text-white');
-            } catch (err) {
-                btn.textContent = 'Hata!';
-                console.error("Kopyalama başarısız oldu: ", err);
-            }
-            document.body.removeChild(tmp);
-            setTimeout(() => {
-                btn.textContent = isAll ? 'Tümünü Kopyala' : 'Kopyala';
-                btn.classList.remove('bg-green-500', 'text-white');
-            }, 2000);
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('bg-green-500', 'text-white');
+                }, 2000);
+            }).catch(err => {
+                console.error('Kopyalama başarısız:', err);
+            });
         }
 
         function resetUI() {
