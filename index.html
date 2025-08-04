@@ -12,6 +12,13 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        #searchInput::-webkit-search-cancel-button {
+            -webkit-appearance: none;
+            height: 1em;
+            width: 1em;
+            background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239CA3AF'><path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/></svg>") center/1em no-repeat;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -39,9 +46,12 @@
 
         <!-- Sonuçların Gösterileceği Alan -->
         <div id="resultsContainer" class="mt-8 hidden">
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex flex-wrap gap-4 justify-between items-center mb-3">
                  <h2 class="text-lg font-semibold text-gray-700">Bulunan Linkler (<span id="linkCount">0</span>)</h2>
-                 <button id="copyAllButton" class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
+                 <div class="flex items-center gap-2">
+                    <input type="search" id="searchInput" placeholder="Linklerde ara..." class="hidden w-40 sm:w-auto px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <button id="copyAllButton" class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
+                 </div>
             </div>
            
             <div class="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
@@ -59,23 +69,27 @@
         const linkList = document.getElementById('linkList');
         const linkCount = document.getElementById('linkCount');
         const copyAllButton = document.getElementById('copyAllButton');
+        const searchInput = document.getElementById('searchInput');
+
+        let allExtractedLinks = []; // Ayıklanan tüm linkleri saklamak için
 
         // Dosya seçimi ve sürükle-bırak olayları
         fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
         const dropZone = document.querySelector('label[for="fileInput"]');
-        dropZone.addEventListener('dragover', e => {
-            e.preventDefault();
-            dropZone.classList.add('bg-blue-50', 'border-blue-400');
-        });
-        dropZone.addEventListener('dragleave', e => {
-            e.preventDefault();
-            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
-        });
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('bg-blue-50', 'border-blue-400'); });
+        dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('bg-blue-50', 'border-blue-400'); });
         dropZone.addEventListener('drop', e => {
             e.preventDefault();
             dropZone.classList.remove('bg-blue-50', 'border-blue-400');
             const file = e.dataTransfer.files[0];
             if (file) handleFile(file);
+        });
+
+        // Arama kutusu olayı
+        searchInput.addEventListener('input', e => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredLinks = allExtractedLinks.filter(href => href.toLowerCase().includes(searchTerm));
+            renderLinks(filteredLinks);
         });
 
         // Dosyayı okuma
@@ -90,42 +104,45 @@
 
         // Linkleri ayıklama (Hibrit Metot)
         function extractLinks(textContent) {
-            // 1. HTML olarak ayrıştır ve <a> etiketlerini bul
             const parser = new DOMParser();
             const doc = parser.parseFromString(textContent, 'text/html');
             const anchorHrefs = [...doc.querySelectorAll('a[href]')].map(a => a.getAttribute('href'));
-
-            // 2. Metin içindeki çıplak URL'leri Regex ile yakala
             const urlRegex = /((?:https?|ftp):\/\/[^\s"'<>]+|www\.[^\s"'<>]+)/gi;
             const plainURLs = [...textContent.matchAll(urlRegex)].map(m => m[0]);
 
-            // 3. İki listeyi birleştir, geçersizleri filtrele ve tekilleştir
-            const allLinks = [...new Set([...anchorHrefs, ...plainURLs]
+            allExtractedLinks = [...new Set([...anchorHrefs, ...plainURLs]
                 .filter(link => link && link.trim() !== '#' && !link.trim().toLowerCase().startsWith('javascript:'))
             )];
 
-            // 4. Sonuçları ekrana yazdır
-            linkCount.textContent = allLinks.length;
             resultsContainer.classList.remove('hidden');
+            if (allExtractedLinks.length > 0) {
+                searchInput.classList.remove('hidden');
+            }
+            renderLinks(allExtractedLinks);
+        }
 
-            if (!allLinks.length) {
-                linkList.innerHTML = '<li class="p-4 text-center text-gray-500">Bu dosyada geçerli bir link bulunamadı.</li>';
+        // Linkleri listeye render etme fonksiyonu
+        function renderLinks(linksToRender) {
+            linkList.innerHTML = '';
+            linkCount.textContent = linksToRender.length;
+
+            if (!linksToRender.length) {
+                linkList.innerHTML = `<li class="p-4 text-center text-gray-500">Arama kriterine uyan link bulunamadı.</li>`;
                 return;
             }
 
-            allLinks.forEach(href => {
+            linksToRender.forEach(href => {
                 const url = (href.startsWith('http') || href.startsWith('ftp')) ? href : `http://${href}`;
                 const li = document.createElement('li');
                 li.className = 'p-3 flex items-center justify-between hover:bg-gray-50';
                 li.innerHTML = `
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate" title="${url}">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate" title="${href}">
                         ${href}
                     </a>
                     <button class="copy-btn ml-4 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded hover:bg-gray-300" data-link="${href}">Kopyala</button>`;
                 linkList.appendChild(li);
             });
 
-            // 5. Kopyala butonlarını aktif et
             document.querySelectorAll('.copy-btn').forEach(btn =>
                 btn.addEventListener('click', e => copyToClipboard(e.target.dataset.link, e.target))
             );
@@ -133,8 +150,9 @@
 
         // Kopyalama fonksiyonları
         copyAllButton.addEventListener('click', () => {
-            const allLinks = [...linkList.querySelectorAll('a')].map(a => a.getAttribute('data-link') || a.href).join('\n');
-            if (allLinks) copyToClipboard(allLinks, copyAllButton, true);
+            // Sadece o an görünür olan linkleri kopyala
+            const visibleLinks = [...linkList.querySelectorAll('a')].map(a => a.title).join('\n');
+            if (visibleLinks) copyToClipboard(visibleLinks, copyAllButton, true);
         });
 
         function copyToClipboard(text, btn, isAll = false) {
@@ -163,8 +181,11 @@
         // Arayüzü sıfırlama
         function resetUI() {
             resultsContainer.classList.add('hidden');
+            searchInput.classList.add('hidden');
+            searchInput.value = '';
             linkList.innerHTML = '';
             linkCount.textContent = '0';
+            allExtractedLinks = [];
         }
     </script>
 </body>
