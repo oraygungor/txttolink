@@ -12,18 +12,23 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        #searchInput::-webkit-search-cancel-button {
+        #searchInput::-webkit-search-cancel-button,
+        input[type="date"]::-webkit-clear-button {
             -webkit-appearance: none;
             height: 1em;
             width: 1em;
             background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239CA3AF'><path d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/></svg>") center/1em no-repeat;
             cursor: pointer;
         }
+        .date-filter-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg p-6 sm:p-8">
+    <div class="bg-white w-full max-w-3xl rounded-xl shadow-lg p-6 sm:p-8">
         <!-- Başlık Bölümü -->
         <div class="text-center mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">HTML İçerikli Metin Dosyasından Link Ayıklama</h1>
@@ -34,9 +39,7 @@
         <div>
             <label for="fileInput" class="w-full flex items-center justify-center px-4 py-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
                 <div class="text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
                     <span class="mt-2 block text-sm font-medium text-gray-700">Bir dosya seçin veya sürükleyip bırakın</span>
                     <span id="fileName" class="mt-1 block text-xs text-gray-500">Henüz dosya seçilmedi</span>
                 </div>
@@ -48,9 +51,19 @@
         <div id="resultsContainer" class="mt-8 hidden">
             <div class="flex flex-wrap gap-4 justify-between items-center mb-3">
                  <h2 class="text-lg font-semibold text-gray-700">Bulunan Linkler (<span id="linkCount">0</span>)</h2>
-                 <div class="flex items-center gap-2">
-                    <input type="search" id="searchInput" placeholder="Linklerde ara..." class="hidden w-40 sm:w-auto px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
-                    <button id="copyAllButton" class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
+                 <div class="flex items-center flex-wrap gap-2">
+                    <input type="search" id="searchInput" placeholder="Linklerde ara..." class="order-3 sm:order-1 w-full sm:w-auto px-2 py-1.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <div id="dateFilters" class="order-2 flex items-center gap-2">
+                        <div>
+                            <label for="startDate" class="date-filter-label">Başlangıç:</label>
+                            <input type="date" id="startDate" class="px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label for="endDate" class="date-filter-label">Bitiş:</label>
+                            <input type="date" id="endDate" class="px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        </div>
+                    </div>
+                    <button id="copyAllButton" class="order-1 sm:order-3 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all">Tümünü Kopyala</button>
                  </div>
             </div>
            
@@ -70,10 +83,13 @@
         const linkCount = document.getElementById('linkCount');
         const copyAllButton = document.getElementById('copyAllButton');
         const searchInput = document.getElementById('searchInput');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const dateFiltersDiv = document.getElementById('dateFilters');
 
-        let allExtractedLinks = []; // Ayıklanan tüm linkleri saklamak için
+        let allExtractedLinks = []; // Ayıklanan tüm linkleri saklamak için: {href, date, displayDate}
 
-        // Dosya seçimi ve sürükle-bırak olayları
+        // --- OLAY DİNLEYİCİLER ---
         fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
         const dropZone = document.querySelector('label[for="fileInput"]');
         dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('bg-blue-50', 'border-blue-400'); });
@@ -85,14 +101,11 @@
             if (file) handleFile(file);
         });
 
-        // Arama kutusu olayı
-        searchInput.addEventListener('input', e => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filteredLinks = allExtractedLinks.filter(href => href.toLowerCase().includes(searchTerm));
-            renderLinks(filteredLinks);
-        });
+        searchInput.addEventListener('input', applyFilters);
+        startDateInput.addEventListener('change', applyFilters);
+        endDateInput.addEventListener('change', applyFilters);
 
-        // Dosyayı okuma
+        // --- ANA FONKSİYONLAR ---
         function handleFile(file) {
             resetUI();
             fileNameDisplay.textContent = `Seçilen dosya: ${file.name}`;
@@ -102,44 +115,87 @@
             reader.readAsText(file);
         }
 
-        // Linkleri ayıklama (Hibrit Metot)
         function extractLinks(textContent) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(textContent, 'text/html');
-            const anchorHrefs = [...doc.querySelectorAll('a[href]')].map(a => a.getAttribute('href'));
+            const lines = textContent.split('\n');
+            const linksFound = [];
+            const dateAndLinkRegex = /\[(\d{1,2}\/\d{1,2}\/\d{4}),[^\]]*\].*?((?:https?|ftp):\/\/[^\s"'<>]+|www\.[^\s"'<>]+)/i;
+
+            for (const line of lines) {
+                const match = line.match(dateAndLinkRegex);
+                if (match) {
+                    const displayDate = match[1]; // GG/AA/YYYY
+                    const href = match[2];
+                    const [day, month, year] = displayDate.split('/');
+                    const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`; // YYYY-MM-DD formatı
+                    linksFound.push({ href, date: isoDate, displayDate });
+                }
+            }
+            
+            // Tarihsiz linkleri de bulmak için ek regex (fallback)
             const urlRegex = /((?:https?|ftp):\/\/[^\s"'<>]+|www\.[^\s"'<>]+)/gi;
             const plainURLs = [...textContent.matchAll(urlRegex)].map(m => m[0]);
+            
+            plainURLs.forEach(href => {
+                // Eğer bu link tarihli olarak zaten bulunmadıysa ekle
+                if (!linksFound.some(l => l.href === href)) {
+                    linksFound.push({ href, date: null, displayDate: null });
+                }
+            });
 
-            allExtractedLinks = [...new Set([...anchorHrefs, ...plainURLs]
-                .filter(link => link && link.trim() !== '#' && !link.trim().toLowerCase().startsWith('javascript:'))
-            )];
+            allExtractedLinks = [...new Map(linksFound.map(item => [item.href, item])).values()]; // Linke göre tekilleştir
 
             resultsContainer.classList.remove('hidden');
-            if (allExtractedLinks.length > 0) {
-                searchInput.classList.remove('hidden');
-            }
-            renderLinks(allExtractedLinks);
+            const hasDates = allExtractedLinks.some(link => link.date);
+            dateFiltersDiv.classList.toggle('hidden', !hasDates);
+            
+            applyFilters();
         }
 
-        // Linkleri listeye render etme fonksiyonu
+        function applyFilters() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            let filteredLinks = allExtractedLinks;
+
+            if (searchTerm) {
+                filteredLinks = filteredLinks.filter(link => link.href.toLowerCase().includes(searchTerm));
+            }
+            
+            if (startDate) {
+                filteredLinks = filteredLinks.filter(link => link.date && link.date >= startDate);
+            }
+
+            if (endDate) {
+                filteredLinks = filteredLinks.filter(link => link.date && link.date <= endDate);
+            }
+            
+            renderLinks(filteredLinks);
+        }
+
         function renderLinks(linksToRender) {
             linkList.innerHTML = '';
             linkCount.textContent = linksToRender.length;
 
             if (!linksToRender.length) {
-                linkList.innerHTML = `<li class="p-4 text-center text-gray-500">Arama kriterine uyan link bulunamadı.</li>`;
+                linkList.innerHTML = `<li class="p-4 text-center text-gray-500">Kritere uyan link bulunamadı.</li>`;
                 return;
             }
 
-            linksToRender.forEach(href => {
+            linksToRender.forEach(({ href, displayDate }) => {
                 const url = (href.startsWith('http') || href.startsWith('ftp')) ? href : `http://${href}`;
                 const li = document.createElement('li');
-                li.className = 'p-3 flex items-center justify-between hover:bg-gray-50';
+                li.className = 'p-3 flex items-center justify-between hover:bg-gray-50 gap-4';
                 li.innerHTML = `
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate" title="${href}">
-                        ${href}
-                    </a>
-                    <button class="copy-btn ml-4 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded hover:bg-gray-300" data-link="${href}">Kopyala</button>`;
+                    <div class="flex-1 min-w-0">
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline truncate block" title="${href}">
+                            ${href}
+                        </a>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        ${displayDate ? `<span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">${displayDate}</span>` : ''}
+                        <button class="copy-btn px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded hover:bg-gray-300" data-link="${href}">Kopyala</button>
+                    </div>`;
                 linkList.appendChild(li);
             });
 
@@ -148,9 +204,8 @@
             );
         }
 
-        // Kopyalama fonksiyonları
+        // --- YARDIMCI FONKSİYONLAR ---
         copyAllButton.addEventListener('click', () => {
-            // Sadece o an görünür olan linkleri kopyala
             const visibleLinks = [...linkList.querySelectorAll('a')].map(a => a.title).join('\n');
             if (visibleLinks) copyToClipboard(visibleLinks, copyAllButton, true);
         });
@@ -178,11 +233,12 @@
             }, 2000);
         }
 
-        // Arayüzü sıfırlama
         function resetUI() {
             resultsContainer.classList.add('hidden');
-            searchInput.classList.add('hidden');
+            dateFiltersDiv.classList.add('hidden');
             searchInput.value = '';
+            startDateInput.value = '';
+            endDateInput.value = '';
             linkList.innerHTML = '';
             linkCount.textContent = '0';
             allExtractedLinks = [];
